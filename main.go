@@ -30,8 +30,10 @@ const (
 )
 
 var (
-	FlagSecretUser     string
-	FlagSecretPassword string
+	FlagBindingAddress  string
+	FlagBindingHostname string
+	FlagSecretUser      string
+	FlagSecretPassword  string
 
 	uploads = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "uploader",
@@ -67,8 +69,10 @@ var (
 
 func init() {
 	logger.SetLevel(".", logger.Trace)
-	flag.StringVar(&FlagSecretUser, "secret.user", "", "username needed for uploading files")
+	flag.StringVar(&FlagBindingAddress, "binding.address", ":10080", "the binding for the http server")
+	flag.StringVar(&FlagBindingHostname, "binding.hostname", "upload.thaller.ws", "the hostname to use for printing the file path")
 	flag.StringVar(&FlagSecretPassword, "secret.password", "", "password needed for uploading files")
+	flag.StringVar(&FlagSecretUser, "secret.user", "", "username needed for uploading files")
 
 	prometheus.MustRegister(uploads)
 	prometheus.MustRegister(downloads)
@@ -105,8 +109,8 @@ func main() {
 	http.Handle("/metrics", prometheus.Handler())
 	http.Handle("/", router)
 
-	l.Notice("Listening on 10443")
-	err := http.ListenAndServe("localhost:10443", nil)
+	l.Notice("Listening to " + FlagBindingAddress)
+	err := http.ListenAndServe(FlagBindingAddress, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
@@ -174,7 +178,12 @@ func upload(w http.ResponseWriter, req *http.Request) {
 		proto = "http"
 	}
 
-	fmt.Fprintln(w, proto+"://"+req.Host+"/"+outfile)
+	hostname := req.Host
+	if FlagBindingHostname != "" {
+		hostname = FlagBindingHostname
+	}
+
+	fmt.Fprintln(w, proto+"://"+hostname+"/"+outfile)
 	l.Notice("Request: ", fmt.Sprintf("%+v", req))
 	l.Notice("Saved file: " + outfile)
 
