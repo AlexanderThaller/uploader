@@ -19,7 +19,6 @@ import (
 	"flag"
 
 	"github.com/AlexanderThaller/logger"
-	"github.com/abbot/go-http-auth"
 	"github.com/gorilla/mux"
 	"github.com/juju/errgo"
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,7 +30,8 @@ const (
 )
 
 var (
-	FlagSecret string
+	FlagSecretUser     string
+	FlagSecretPassword string
 
 	uploads = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "uploader",
@@ -67,7 +67,8 @@ var (
 
 func init() {
 	logger.SetLevel(".", logger.Trace)
-	flag.StringVar(&FlagSecret, "secret", "", "hide upload and root function under this secret.")
+	flag.StringVar(&FlagSecretUser, "secret.user", "", "username needed for uploading files")
+	flag.StringVar(&FlagSecretPassword, "secret.password", "", "password needed for uploading files")
 
 	prometheus.MustRegister(uploads)
 	prometheus.MustRegister(downloads)
@@ -82,13 +83,12 @@ func main() {
 
 	router := mux.NewRouter()
 
-	if FlagSecret != "" {
-		authenticator := auth.NewBasicAuthenticator("upload", checkSecret)
-		router.HandleFunc("/", auth.JustCheck(authenticator, root))
-		router.HandleFunc("/upload", auth.JustCheck(authenticator, upload))
-		router.HandleFunc("/upload/", auth.JustCheck(authenticator, upload))
-		router.HandleFunc("/download", auth.JustCheck(authenticator, download))
-		router.HandleFunc("/download/", auth.JustCheck(authenticator, download))
+	if FlagSecretUser != "" && FlagSecretPassword != "" {
+		router.HandleFunc("/", auth(root))
+		router.HandleFunc("/upload", auth(upload))
+		router.HandleFunc("/upload/", auth(upload))
+		router.HandleFunc("/download", auth(download))
+		router.HandleFunc("/download/", auth(download))
 	} else {
 		router.HandleFunc("/", root)
 		router.HandleFunc("/upload", upload)
@@ -383,8 +383,4 @@ func downloadStatus(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Write(log)
-}
-
-func checkSecret(user, realm string) string {
-	return FlagSecret
 }
